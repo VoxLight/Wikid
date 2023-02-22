@@ -15,8 +15,11 @@ class Wikid:
         dest_url: str,
         start_alias: str = None,
         dest_alias: str = None,
-        interests: List[str] = []
+        interests: List[str] = [],
+        amount_of_matching_urls: int = 25,
     ):
+        self.amount_of_matching_urls = amount_of_matching_urls
+        
         self.start_url = start_url
         self.start_alias = start_alias
 
@@ -27,7 +30,7 @@ class Wikid:
 
         self.path = None
         self.visited = set()
-        self.graph = nx.Graph()
+        self.graph = nx.DiGraph()
         self.crawler = Crawler(
             filter_url=UrlFilterer(
                 allowed_domains={"en.wikipedia.org"},
@@ -40,14 +43,23 @@ class Wikid:
     def article_from_url(self, url: str):
         if self.start_alias and url is self.start_url:
             return self.start_alias
-        if self.dest_url and url is self.dest_url:
+        if self.dest_alias and url is self.dest_url:
             return self.dest_alias
         return url.split("/")[-1]
 
     def get_links(self, url: str):
-        return self.crawler.crawl(url)
+        link_scores = []
+        for link in self.crawler.crawl(url):
+            score = core_web_score(
+                self.article_from_url(link),
+                self.article_from_url(self.dest_url),
+                user_interests=self.interests
+            )
+            # print(link, self.dest_url, score)
+            link_scores.append((link, score))
+        return sorted(link_scores, key=lambda x: x[1], reverse=True)[:self.amount_of_matching_urls]
 
-    def get_max_unchecked_links(self):
+    def get_heaviest_unchecked_link(self):
         best_weight = 0
         best_url = None
         for _, url, data in self.graph.edges(data=True):
@@ -59,39 +71,43 @@ class Wikid:
             
         return best_url, best_weight
 
-
-
     def add_links_to_graph(self, url: str):
         self.visited.add(url)
-        for link in self.get_links(url):
+        for link, score in self.get_links(url):
             if link in self.visited or link == url:
                 continue
-            score = core_web_score(
-                self.article_from_url(link),
-                self.article_from_url(self.dest_url),
-                user_interests=self.interests
-            )
+            # print(link, score)
             self.graph.add_edge(url, link, weight=score)
             if link == self.dest_url:
                 return link
-        
-
-        url, weight = self.get_max_unchecked_links()
-        print("Checking", url)
+        url, _ = self.get_heaviest_unchecked_link()
+        # print("Checking", url)
         self.add_links_to_graph(url)
 
-    def show_graph(self):
+    def show_graph(self, desired_layout=nx.spiral_layout):
         # create labels dictionary for nodes in shortest path
-        labels = {node: node if node in self.path else "" for node in self.graph.nodes()}
+        labels = {node: self.article_from_url(node) if node in self.path else "" for node in self.graph.nodes()}
 
         # create edge and node colors based on whether they are in the shortest path
         edge_colors = ["red" if (u, v) in zip(self.path, self.path[1:]) else "gray" for u, v in self.graph.edges()]
         node_colors = ["red" if node in self.path else "gray" for node in self.graph.nodes()]
 
         # draw the graph with customized edge and node colors, thickness, opacity, and size
-        pos = nx.spring_layout(self.graph)
-        nx.draw_networkx_edges(self.graph, pos, edgelist=self.graph.edges(), edge_color=edge_colors, width=[3 if (u, v) in zip(self.path, self.path[1:]) else 1 for u, v in self.graph.edges()], alpha=0.5)
-        nx.draw_networkx_nodes(self.graph, pos, node_color=node_colors, node_size=[800 if node in self.path else 200 for node in self.graph.nodes()], alpha=0.5)
+        pos = desired_layout(self.graph)
+        nx.draw_networkx_edges(
+            self.graph, 
+            pos, 
+            edgelist=self.graph.edges(), 
+            edge_color=edge_colors, 
+            width=[3 if (u, v) in zip(self.path, self.path[1:]) else 1 for u, v in self.graph.edges()], 
+            alpha=0.5
+        )
+        nx.draw_networkx_nodes(
+            self.graph, pos, 
+            node_color=node_colors, 
+            node_size=[800 if node in self.path else 200 for node in self.graph.nodes()], 
+            alpha=0.5
+        )
         nx.draw_networkx_labels(self.graph, pos, labels)
 
         # display the graph
@@ -105,20 +121,13 @@ class Wikid:
         return self.path
 
 def main():
-    start_url = "https://en.wikipedia.org/wiki/Agnosticism"
-    dest_url = "https://en.wikipedia.org/wiki/Furry_fandom"
-
     wikid = Wikid(
-        start_url, 
-        dest_url,
-        dest_alias="Furry",
-        interests=[
-            "Fandom", 
-            "Anthropomorphism", 
-            "Subculture",
-        ]
-        )
+        "https://en.wikipedia.org/wiki/Gasoline", 
+        "https://en.wikipedia.org/wiki/Bookcase",
+        amount_of_matching_urls=5
+    )
     path = wikid.run()
+    wikid.show_graph()
     print(path)
 
 if __name__ == '__main__':

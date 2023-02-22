@@ -1,4 +1,3 @@
-from nltk.corpus import wordnet as wn
 import spacy
 from time import perf_counter_ns
 
@@ -10,6 +9,7 @@ _nlp = spacy.load("en_core_web_lg")
 
 def core_web_score(a: str, b: str, user_interests: List[str] = []) -> float:
     """Compute the semantic similarity between two words a and b using a pre-trained language model, adjusted by user interests."""
+    # print(a, b)
     if None in [a, b]:
         return 0.0
     # Get the spaCy token objects for each word
