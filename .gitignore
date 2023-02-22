@@ -1,3 +1,6 @@
 
 # Virtual Environments
 env
+
+# Byte-Compile stuff
+__pycache__
