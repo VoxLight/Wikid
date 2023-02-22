@@ -9,11 +9,24 @@ from time import perf_counter
 class Wikid:
     BASE_URL = 'https://en.wikipedia.org/wiki/'
 
-    def __init__(self, start_url: str, dest_url: str):
+    def __init__(
+        self, 
+        start_url: str, 
+        dest_url: str,
+        start_alias: str = None,
+        dest_alias: str = None,
+        interests: List[str] = []
+    ):
         self.start_url = start_url
+        self.start_alias = start_alias
+
         self.dest_url = dest_url
-        self.visited = set()
+        self.dest_alias = dest_alias
+
+        self.interests = interests
+
         self.path = None
+        self.visited = set()
         self.graph = nx.Graph()
         self.crawler = Crawler(
             filter_url=UrlFilterer(
@@ -24,8 +37,11 @@ class Wikid:
             ).filter_url,
         )
 
-    @staticmethod
-    def article_from_url(url: str):
+    def article_from_url(self, url: str):
+        if self.start_alias and url is self.start_url:
+            return self.start_alias
+        if self.dest_url and url is self.dest_url:
+            return self.dest_alias
         return url.split("/")[-1]
 
     def get_links(self, url: str):
@@ -37,7 +53,7 @@ class Wikid:
         for _, url, data in self.graph.edges(data=True):
             if url in self.visited:
                 continue
-            if data["weight"] > best_weight:
+            if data["weight"] >= best_weight:
                 best_weight = data["weight"]
                 best_url = url
             
@@ -52,7 +68,8 @@ class Wikid:
                 continue
             score = core_web_score(
                 self.article_from_url(link),
-                self.article_from_url(self.dest_url)
+                self.article_from_url(self.dest_url),
+                user_interests=self.interests
             )
             self.graph.add_edge(url, link, weight=score)
             if link == self.dest_url:
@@ -89,9 +106,18 @@ class Wikid:
 
 def main():
     start_url = "https://en.wikipedia.org/wiki/Agnosticism"
-    dest_url = "https://en.wikipedia.org/wiki/Extinction"
+    dest_url = "https://en.wikipedia.org/wiki/Furry_fandom"
 
-    wikid = Wikid(start_url, dest_url)
+    wikid = Wikid(
+        start_url, 
+        dest_url,
+        dest_alias="Furry",
+        interests=[
+            "Fandom", 
+            "Anthropomorphism", 
+            "Subculture",
+        ]
+        )
     path = wikid.run()
     print(path)
 
