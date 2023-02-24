@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 from crawler import Crawler, UrlFilterer
 from scorer import core_web_score
 import networkx as nx
@@ -50,11 +50,13 @@ class Wikid:
     def get_links(self, url: str):
         link_scores = []
         for link in self.crawler.crawl(url):
+            
             score = core_web_score(
                 self.article_from_url(link),
                 self.article_from_url(self.dest_url),
                 user_interests=self.interests
             )
+            if link == self.dest_url: return [(link, score)]
             # print(link, self.dest_url, score)
             link_scores.append((link, score))
         return sorted(link_scores, key=lambda x: x[1], reverse=True)[:self.amount_of_matching_urls]
@@ -76,12 +78,11 @@ class Wikid:
         for link, score in self.get_links(url):
             if link in self.visited or link == url:
                 continue
-            # print(link, score)
             self.graph.add_edge(url, link, weight=score)
             if link == self.dest_url:
                 return link
         url, _ = self.get_heaviest_unchecked_link()
-        # print("Checking", url)
+        print("Checking", url, _)
         self.add_links_to_graph(url)
 
     def show_graph(self, desired_layout=nx.spiral_layout):
@@ -122,9 +123,10 @@ class Wikid:
 
 def main():
     wikid = Wikid(
-        "https://en.wikipedia.org/wiki/Gasoline", 
-        "https://en.wikipedia.org/wiki/Bookcase",
-        amount_of_matching_urls=5
+        "https://en.wikipedia.org/wiki/Camping", 
+        "https://en.wikipedia.org/wiki/Depression_(mood)",
+        amount_of_matching_urls=5,
+        dest_alias="depressed"
     )
     path = wikid.run()
     wikid.show_graph()
